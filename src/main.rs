@@ -1,13 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use eframe::egui;
-use egui::{FontDefinitions, FontData};
-use windows::Win32::Media::Multimedia::*;
+use egui::{emath::RectTransform, FontData, FontDefinitions, Rounding, Stroke, Color32};
 use std::env;
+use windows::Win32::Media::Multimedia::*;
 
 /*
 https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/Media/Multimedia/fn.joyGetPosEx.html
 https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/Media/Multimedia/struct.JOYINFOEX.html
+
+https://whoisryosuke.com/blog/2023/getting-started-with-egui-in-rust/
 */
 
 fn main() -> Result<(), eframe::Error> {
@@ -15,7 +17,7 @@ fn main() -> Result<(), eframe::Error> {
     env_logger::init();
 
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(800.0, 600.0)),
+        initial_window_size: Some(egui::vec2(800.0, 800.0)),
         centered: true,
         default_theme: eframe::Theme::Light,
         follow_system_theme: false,
@@ -39,11 +41,21 @@ impl eframe::App for MyApp {
         ctx.request_repaint(); //毎フレーム更新を要求
 
         let mut fonts = FontDefinitions::default();
-        fonts.font_data.insert("my_font".to_owned(), FontData::from_static(include_bytes!("C:\\Windows\\Fonts\\yumin.ttf")));
-        fonts.families.get_mut(&egui::FontFamily::Proportional).unwrap().insert(0, "my_font".to_owned());
-        fonts.families.get_mut(&egui::FontFamily::Monospace).unwrap().push("my_font".to_owned());
+        fonts.font_data.insert(
+            "my_font".to_owned(),
+            FontData::from_static(include_bytes!("C:\\Windows\\Fonts\\yumin.ttf")),
+        );
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Proportional)
+            .unwrap()
+            .insert(0, "my_font".to_owned());
+        fonts
+            .families
+            .get_mut(&egui::FontFamily::Monospace)
+            .unwrap()
+            .push("my_font".to_owned());
         ctx.set_fonts(fonts);
-
 
         let mut text = String::new();
 
@@ -95,6 +107,50 @@ impl eframe::App for MyApp {
 
             egui::CentralPanel::default().show(ctx, |ui| {
                 ui.heading(text);
+
+                let (responce, painter) = ui.allocate_painter(
+                    egui::Vec2::new(100.0, 100.0),
+                    egui::Sense::hover(),
+                );
+                let to_screen = RectTransform::from_to(
+                    egui::Rect::from_min_size(egui::Pos2::ZERO, responce.rect.size()),
+                    responce.rect,
+                );
+                let p1 = to_screen.transform_pos(egui::Pos2 { x: 0.0, y: 0.0 });
+                let p2 = to_screen.transform_pos(egui::Pos2 { x: 100.0, y: 100.0 });
+                painter.add(egui::Shape::Rect(egui::epaint::RectShape{
+                    rect: egui::Rect { min:p1, max:p2 },
+                    rounding: Rounding::none(),
+                    fill: egui::Color32::WHITE,
+                    stroke: egui::Stroke {
+                        width: 1.0,
+                        color: egui::Color32::BLACK,
+                    },
+                }));
+
+                let posX = (dw_xpos as f32) /65536.0*100.0;
+                let posY = (dw_ypos as f32) /65536.0*100.0;
+
+                let q1 = to_screen.transform_pos(egui::Pos2 { x: posX, y: posY-5.0 });
+                let q2 = to_screen.transform_pos(egui::Pos2 { x: posX, y: posY+5.0 });
+                painter.add(egui::Shape::LineSegment {
+                    points: [q1, q2],
+                    stroke: egui::Stroke {
+                        width: 1.0,
+                        color: egui::Color32::RED,
+                    },
+                });
+
+                let q1 = to_screen.transform_pos(egui::Pos2 { x: posX-5.0, y: posY });
+                let q2 = to_screen.transform_pos(egui::Pos2 { x: posX+5.0, y: posY });
+                painter.add(egui::Shape::LineSegment {
+                    points: [q1, q2],
+                    stroke: egui::Stroke {
+                        width: 1.0,
+                        color: egui::Color32::RED,
+                    },
+                });
+
                 ui.add(egui::Slider::new(&mut dw_xpos, 0..=65535).text("X"));
                 ui.add(egui::Slider::new(&mut dw_ypos, 0..=65535).text("Y"));
                 ui.add(egui::Slider::new(&mut dw_zpos, 0..=65535).text("Z"));
@@ -102,12 +158,41 @@ impl eframe::App for MyApp {
                 ui.add(egui::Slider::new(&mut dw_upos, 0..=65535).text("U"));
                 ui.add(egui::Slider::new(&mut dw_vpos, 0..=65535).text("V"));
                 ui.add(egui::Slider::new(&mut dw_pov, 0..=36000).text("POV"));
+
+                ui.horizontal(|ui| {
+                    for i in 0..16 {
+                        let b = (dw_buttons >> i) & 1;
+                        if b > 0 {
+                            ui.add_sized(
+                                [20.0, 20.0],
+                                egui::Label::new(
+                                    egui::RichText::new(format!(" {i} "))
+                                        .monospace()
+                                        .background_color(egui::Color32::from_rgb(255, 0, 0))
+                                        .color(egui::Color32::from_rgb(255, 255, 255)),
+                                ),
+                            );
+                        } else {
+                            ui.add_sized(
+                                [20.0, 20.0],
+                                egui::Label::new(
+                                    egui::RichText::new(format!(" {i} "))
+                                        .monospace()
+                                        .background_color(egui::Color32::from_rgb(127, 127, 127))
+                                        .color(egui::Color32::from_rgb(0, 0, 0)),
+                                ),
+                            );
+                        }
+                    }
+                });
             });
         } else {
             match ret {
                 JOYERR_NOCANDO => text += format!("{id} JOYERR_NOCANDO\n", id = ujoyid).as_str(),
                 JOYERR_PARMS => text += format!("{id} JOYERR_PARMS\n", id = ujoyid).as_str(),
-                JOYERR_UNPLUGGED => text += format!("{id} JOYERR_UNPLUGGED\n", id = ujoyid).as_str(),
+                JOYERR_UNPLUGGED => {
+                    text += format!("{id} JOYERR_UNPLUGGED\n", id = ujoyid).as_str()
+                }
                 _ => text += format!("{id} ?\n", id = ujoyid).as_str(),
             }
 
@@ -115,6 +200,5 @@ impl eframe::App for MyApp {
                 ui.heading(text);
             });
         }
-
     }
 }
