@@ -1,9 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod joyget;
+
 use eframe::egui;
-use egui::{emath::RectTransform, FontData, FontDefinitions, Rounding, Stroke, Color32};
+use egui::{emath::RectTransform, FontData, FontDefinitions, Rounding};
 use std::env;
-use windows::Win32::Media::Multimedia::*;
 
 /*
 https://microsoft.github.io/windows-docs-rs/doc/windows/Win32/Media/Multimedia/fn.joyGetPosEx.html
@@ -17,7 +18,7 @@ fn main() -> Result<(), eframe::Error> {
     env_logger::init();
 
     let options = eframe::NativeOptions {
-        initial_window_size: Some(egui::vec2(800.0, 800.0)),
+        initial_window_size: Some(egui::vec2(800.0, 600.0)),
         centered: true,
         default_theme: eframe::Theme::Light,
         follow_system_theme: false,
@@ -57,148 +58,109 @@ impl eframe::App for MyApp {
             .push("my_font".to_owned());
         ctx.set_fonts(fonts);
 
-        let mut text = String::new();
+        let gamepad = joyget::update(0);
 
-        let nums: u32;
-        unsafe {
-            nums = joyGetNumDevs();
-        }
-        text += format!("デバイス数: {num}\n", num = nums).as_str();
+        match gamepad {
+            Ok(d) => {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let (responce, painter) =
+                        ui.allocate_painter(egui::Vec2::new(100.0, 100.0), egui::Sense::hover());
+                    let to_screen = RectTransform::from_to(
+                        egui::Rect::from_min_size(egui::Pos2::ZERO, responce.rect.size()),
+                        responce.rect,
+                    );
+                    let p1 = to_screen.transform_pos(egui::Pos2 { x: 0.0, y: 0.0 });
+                    let p2 = to_screen.transform_pos(egui::Pos2 { x: 100.0, y: 100.0 });
+                    painter.add(egui::Shape::Rect(egui::epaint::RectShape {
+                        rect: egui::Rect { min: p1, max: p2 },
+                        rounding: Rounding::none(),
+                        fill: egui::Color32::WHITE,
+                        stroke: egui::Stroke {
+                            width: 1.0,
+                            color: egui::Color32::BLACK,
+                        },
+                    }));
 
-        let mut joyinfoex: JOYINFOEX = JOYINFOEX::default();
-        joyinfoex.dwSize = std::mem::size_of::<JOYINFOEX>() as u32;
-        joyinfoex.dwFlags = (JOY_RETURNBUTTONS
-            | JOY_RETURNCENTERED
-            | JOY_RETURNPOV
-            | JOY_RETURNR
-            | JOY_RETURNU
-            | JOY_RETURNV
-            | JOY_RETURNX
-            | JOY_RETURNY
-            | JOY_RETURNZ) as u32;
+                    let pos_x = ((d.axis_x + 1.0) / 2.0) * 100.0;
+                    let pos_y = ((d.axis_y + 1.0) / 2.0) * 100.0;
 
-        const ujoyid: u32 = JOYSTICKID1;
-        let pji: *mut JOYINFOEX = &mut joyinfoex as *mut JOYINFOEX;
-        text += format!("{:?}\n", pji).as_str();
+                    let q1 = to_screen.transform_pos(egui::Pos2 {
+                        x: pos_x,
+                        y: pos_y - 5.0,
+                    });
+                    let q2 = to_screen.transform_pos(egui::Pos2 {
+                        x: pos_x,
+                        y: pos_y + 5.0,
+                    });
+                    painter.add(egui::Shape::LineSegment {
+                        points: [q1, q2],
+                        stroke: egui::Stroke {
+                            width: 1.0,
+                            color: egui::Color32::RED,
+                        },
+                    });
 
-        let ret: u32;
-        unsafe {
-            ret = joyGetPosEx(ujoyid, pji);
-        }
-        if ret == JOYERR_NOERROR {
-            let dw_buttons = joyinfoex.dwButtons;
-            let mut dw_xpos = joyinfoex.dwXpos;
-            let mut dw_ypos = joyinfoex.dwYpos;
-            let mut dw_zpos = joyinfoex.dwZpos;
-            let mut dw_rpos = joyinfoex.dwRpos;
-            let mut dw_upos = joyinfoex.dwUpos;
-            let mut dw_vpos = joyinfoex.dwVpos;
-            let mut dw_pov = joyinfoex.dwPOV;
+                    let q1 = to_screen.transform_pos(egui::Pos2 {
+                        x: pos_x - 5.0,
+                        y: pos_y,
+                    });
+                    let q2 = to_screen.transform_pos(egui::Pos2 {
+                        x: pos_x + 5.0,
+                        y: pos_y,
+                    });
+                    painter.add(egui::Shape::LineSegment {
+                        points: [q1, q2],
+                        stroke: egui::Stroke {
+                            width: 1.0,
+                            color: egui::Color32::RED,
+                        },
+                    });
 
-            text += format!("{id} OK\n", id = ujoyid).as_str();
-            text += format!("Buttons: {:?}\n", dw_buttons).as_str();
-            text += format!("X: {:?}\n", dw_xpos).as_str();
-            text += format!("Y: {:?}\n", dw_ypos).as_str();
-            text += format!("Z: {:?}\n", dw_zpos).as_str();
-            text += format!("R: {:?}\n", dw_rpos).as_str();
-            text += format!("U: {:?}\n", dw_upos).as_str();
-            text += format!("V: {:?}\n", dw_vpos).as_str();
-            text += format!("POV: {:?}\n", dw_pov).as_str();
+                    ui.add(egui::Slider::new(&mut d.axis_x.to_owned(), -1.0..=1.0).text("X"));
+                    ui.add(egui::Slider::new(&mut d.axis_y.to_owned(), -1.0..=1.0).text("Y"));
+                    ui.add(egui::Slider::new(&mut d.axis_z.to_owned(), -1.0..=1.0).text("Z"));
+                    ui.add(egui::Slider::new(&mut d.axis_r.to_owned(), -1.0..=1.0).text("R"));
+                    ui.add(egui::Slider::new(&mut d.axis_u.to_owned(), -1.0..=1.0).text("U"));
+                    ui.add(egui::Slider::new(&mut d.axis_v.to_owned(), -1.0..=1.0).text("V"));
+                    ui.add(
+                        egui::Slider::new(&mut d.pov.unwrap_or_else(|| 65535), 0..=36000)
+                            .text("POV"),
+                    );
 
-            egui::CentralPanel::default().show(ctx, |ui| {
-                ui.heading(text);
-
-                let (responce, painter) = ui.allocate_painter(
-                    egui::Vec2::new(100.0, 100.0),
-                    egui::Sense::hover(),
-                );
-                let to_screen = RectTransform::from_to(
-                    egui::Rect::from_min_size(egui::Pos2::ZERO, responce.rect.size()),
-                    responce.rect,
-                );
-                let p1 = to_screen.transform_pos(egui::Pos2 { x: 0.0, y: 0.0 });
-                let p2 = to_screen.transform_pos(egui::Pos2 { x: 100.0, y: 100.0 });
-                painter.add(egui::Shape::Rect(egui::epaint::RectShape{
-                    rect: egui::Rect { min:p1, max:p2 },
-                    rounding: Rounding::none(),
-                    fill: egui::Color32::WHITE,
-                    stroke: egui::Stroke {
-                        width: 1.0,
-                        color: egui::Color32::BLACK,
-                    },
-                }));
-
-                let posX = (dw_xpos as f32) /65536.0*100.0;
-                let posY = (dw_ypos as f32) /65536.0*100.0;
-
-                let q1 = to_screen.transform_pos(egui::Pos2 { x: posX, y: posY-5.0 });
-                let q2 = to_screen.transform_pos(egui::Pos2 { x: posX, y: posY+5.0 });
-                painter.add(egui::Shape::LineSegment {
-                    points: [q1, q2],
-                    stroke: egui::Stroke {
-                        width: 1.0,
-                        color: egui::Color32::RED,
-                    },
-                });
-
-                let q1 = to_screen.transform_pos(egui::Pos2 { x: posX-5.0, y: posY });
-                let q2 = to_screen.transform_pos(egui::Pos2 { x: posX+5.0, y: posY });
-                painter.add(egui::Shape::LineSegment {
-                    points: [q1, q2],
-                    stroke: egui::Stroke {
-                        width: 1.0,
-                        color: egui::Color32::RED,
-                    },
-                });
-
-                ui.add(egui::Slider::new(&mut dw_xpos, 0..=65535).text("X"));
-                ui.add(egui::Slider::new(&mut dw_ypos, 0..=65535).text("Y"));
-                ui.add(egui::Slider::new(&mut dw_zpos, 0..=65535).text("Z"));
-                ui.add(egui::Slider::new(&mut dw_rpos, 0..=65535).text("R"));
-                ui.add(egui::Slider::new(&mut dw_upos, 0..=65535).text("U"));
-                ui.add(egui::Slider::new(&mut dw_vpos, 0..=65535).text("V"));
-                ui.add(egui::Slider::new(&mut dw_pov, 0..=36000).text("POV"));
-
-                ui.horizontal(|ui| {
-                    for i in 0..16 {
-                        let b = (dw_buttons >> i) & 1;
-                        if b > 0 {
-                            ui.add_sized(
-                                [20.0, 20.0],
-                                egui::Label::new(
-                                    egui::RichText::new(format!(" {i} "))
-                                        .monospace()
-                                        .background_color(egui::Color32::from_rgb(255, 0, 0))
-                                        .color(egui::Color32::from_rgb(255, 255, 255)),
-                                ),
-                            );
-                        } else {
-                            ui.add_sized(
-                                [20.0, 20.0],
-                                egui::Label::new(
-                                    egui::RichText::new(format!(" {i} "))
-                                        .monospace()
-                                        .background_color(egui::Color32::from_rgb(127, 127, 127))
-                                        .color(egui::Color32::from_rgb(0, 0, 0)),
-                                ),
-                            );
+                    ui.horizontal(|ui| {
+                        for i in 0..16 {
+                            if d.buttons[i] {
+                                ui.add_sized(
+                                    [20.0, 20.0],
+                                    egui::Label::new(
+                                        egui::RichText::new(format!(" {} ", i + 1))
+                                            .monospace()
+                                            .background_color(egui::Color32::from_rgb(255, 0, 0))
+                                            .color(egui::Color32::from_rgb(255, 255, 255)),
+                                    ),
+                                );
+                            } else {
+                                ui.add_sized(
+                                    [20.0, 20.0],
+                                    egui::Label::new(
+                                        egui::RichText::new(format!(" {} ", i + 1))
+                                            .monospace()
+                                            .background_color(egui::Color32::from_rgb(
+                                                127, 127, 127,
+                                            ))
+                                            .color(egui::Color32::from_rgb(0, 0, 0)),
+                                    ),
+                                );
+                            }
                         }
-                    }
+                    });
                 });
-            });
-        } else {
-            match ret {
-                JOYERR_NOCANDO => text += format!("{id} JOYERR_NOCANDO\n", id = ujoyid).as_str(),
-                JOYERR_PARMS => text += format!("{id} JOYERR_PARMS\n", id = ujoyid).as_str(),
-                JOYERR_UNPLUGGED => {
-                    text += format!("{id} JOYERR_UNPLUGGED\n", id = ujoyid).as_str()
-                }
-                _ => text += format!("{id} ?\n", id = ujoyid).as_str(),
             }
-
-            egui::CentralPanel::default().show(ctx, |ui| {
-                ui.heading(text);
-            });
+            Err(e) => {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.heading(format!("{:?}", e));
+                });
+            }
         }
     }
 }
