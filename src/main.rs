@@ -58,62 +58,72 @@ impl eframe::App for MyApp {
             .push("my_font".to_owned());
         ctx.set_fonts(fonts);
 
-        let gamepad = joyget::update(0);
-
+        const PAD_ID:u32 = 0;
+        let gamepad = joyget::update(PAD_ID);
+        println!("{:?}",gamepad);
+        
         match gamepad {
             Ok(d) => {
                 egui::CentralPanel::default().show(ctx, |ui| {
-                    let (responce, painter) =
-                        ui.allocate_painter(egui::Vec2::new(100.0, 100.0), egui::Sense::hover());
-                    let to_screen = RectTransform::from_to(
-                        egui::Rect::from_min_size(egui::Pos2::ZERO, responce.rect.size()),
-                        responce.rect,
-                    );
-                    let p1 = to_screen.transform_pos(egui::Pos2 { x: 0.0, y: 0.0 });
-                    let p2 = to_screen.transform_pos(egui::Pos2 { x: 100.0, y: 100.0 });
-                    painter.add(egui::Shape::Rect(egui::epaint::RectShape {
-                        rect: egui::Rect { min: p1, max: p2 },
-                        rounding: Rounding::none(),
-                        fill: egui::Color32::WHITE,
-                        stroke: egui::Stroke {
-                            width: 1.0,
-                            color: egui::Color32::BLACK,
-                        },
-                    }));
+                    let draw = |ui: &mut egui::Ui, x1: f32, x2: f32| -> () {
+                        let (responce, painter) = ui
+                            .allocate_painter(egui::Vec2::new(100.0, 100.0), egui::Sense::hover());
+                        let to_screen = RectTransform::from_to(
+                            egui::Rect::from_min_size(egui::Pos2::ZERO, responce.rect.size()),
+                            responce.rect,
+                        );
 
-                    let pos_x = ((d.axis_x + 1.0) / 2.0) * 100.0;
-                    let pos_y = ((d.axis_y + 1.0) / 2.0) * 100.0;
+                        let p1 = to_screen.transform_pos(egui::Pos2 { x: 0.0, y: 0.0 });
+                        let p2 = to_screen.transform_pos(egui::Pos2 { x: 100.0, y: 100.0 });
+                        painter.add(egui::Shape::Rect(egui::epaint::RectShape {
+                            rect: egui::Rect { min: p1, max: p2 },
+                            rounding: Rounding::none(),
+                            fill: egui::Color32::WHITE,
+                            stroke: egui::Stroke {
+                                width: 1.0,
+                                color: egui::Color32::BLACK,
+                            },
+                        }));
 
-                    let q1 = to_screen.transform_pos(egui::Pos2 {
-                        x: pos_x,
-                        y: pos_y - 5.0,
-                    });
-                    let q2 = to_screen.transform_pos(egui::Pos2 {
-                        x: pos_x,
-                        y: pos_y + 5.0,
-                    });
-                    painter.add(egui::Shape::LineSegment {
-                        points: [q1, q2],
-                        stroke: egui::Stroke {
-                            width: 1.0,
-                            color: egui::Color32::RED,
-                        },
-                    });
+                        let pos_x = ((x1 + 1.0) / 2.0) * 100.0;
+                        let pos_y = ((x2 + 1.0) / 2.0) * 100.0;
 
-                    let q1 = to_screen.transform_pos(egui::Pos2 {
-                        x: pos_x - 5.0,
-                        y: pos_y,
-                    });
-                    let q2 = to_screen.transform_pos(egui::Pos2 {
-                        x: pos_x + 5.0,
-                        y: pos_y,
-                    });
-                    painter.add(egui::Shape::LineSegment {
-                        points: [q1, q2],
-                        stroke: egui::Stroke {
-                            width: 1.0,
-                            color: egui::Color32::RED,
-                        },
+                        let q1 = to_screen.transform_pos(egui::Pos2 {
+                            x: pos_x,
+                            y: pos_y - 5.0,
+                        });
+                        let q2 = to_screen.transform_pos(egui::Pos2 {
+                            x: pos_x,
+                            y: pos_y + 5.0,
+                        });
+                        painter.add(egui::Shape::LineSegment {
+                            points: [q1, q2],
+                            stroke: egui::Stroke {
+                                width: 1.0,
+                                color: egui::Color32::RED,
+                            },
+                        });
+
+                        let q1 = to_screen.transform_pos(egui::Pos2 {
+                            x: pos_x - 5.0,
+                            y: pos_y,
+                        });
+                        let q2 = to_screen.transform_pos(egui::Pos2 {
+                            x: pos_x + 5.0,
+                            y: pos_y,
+                        });
+                        painter.add(egui::Shape::LineSegment {
+                            points: [q1, q2],
+                            stroke: egui::Stroke {
+                                width: 1.0,
+                                color: egui::Color32::RED,
+                            },
+                        });
+                    };
+
+                    ui.horizontal(|ui| {
+                        draw(ui, d.axis_x, d.axis_y);
+                        draw(ui, d.axis_z, d.axis_r);
                     });
 
                     ui.add(egui::Slider::new(&mut d.axis_x.to_owned(), -1.0..=1.0).text("X"));
