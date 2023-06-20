@@ -1,29 +1,63 @@
+//! This is a mini program of joystick handling in windows.
+
 use windows::Win32::Media::Multimedia::*;
 
 #[derive(Debug, Default)]
+/// JoystickData for each joystick.
 pub struct JoystickData {
+    /// axis position
     pub axis_x: f32,
+
+    /// axis position
     pub axis_y: f32,
+
+    /// axis position
     pub axis_z: f32,
+
+    /// axis position
     pub axis_r: f32,
+
+    /// axis position
     pub axis_u: f32,
+
+    /// axis position
     pub axis_v: f32,
+
+    /// POV is a 32-bit value representing the POV of the joystick.
+    /// value is in the range 0 to 36000. ( x100 degles )
+    /// None is not input
     pub pov: Option<u32>,
+
+    /// buttons a list of joystick buttons.
+    /// index 0 is button 1
+    /// index 31 is button 32
     pub buttons: [bool; 32],
 }
 
 #[derive(Debug)]
+/// Error type for joystick handling.
 pub enum JoystickError {
+    /// Unknown error. ( Unexpected error )
     Unknown,
+
+    /// Request not completed
     Nocando,
+
+    /// Invalid parameter.
     Params,
+
+    /// Joystick is unplugged
     Unplugged,
 }
 
+/// 32bit value to normalized floating value.
 fn to1(v:u32) -> f32 {
     ((((v as i64) - 32767) as f32) / 32767.0).clamp(-1.0, 1.0)
 }
 
+/// Get joystick data.
+/// 
+/// * `joystick_id` - joystick id. (0-15)
 pub fn update(joystick_id: u32) -> Result<JoystickData, JoystickError> {
     let mut joyinfoex: JOYINFOEX = JOYINFOEX::default();
     joyinfoex.dwSize = std::mem::size_of::<JOYINFOEX>() as u32;
