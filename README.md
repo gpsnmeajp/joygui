@@ -11,7 +11,7 @@ Windowsでジョイスティック(ゲームパッド)の情報をwindows-rsを�
 mod joyget;
 
 const PAD_ID:u32 = 0;
-let gamepad = joyget::update(PAD_ID);
+let gamepad = joyget::update(PAD_ID); // use joyGetPosEx
 println!("{:?}",gamepad);
 ```
 
